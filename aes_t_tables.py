@@ -29,6 +29,7 @@ rcon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 ######################################
 # code
 
+from functools import reduce
 
 def multiply_pol(hex1, hex2):
     s1 = [int(x) for x in bin(hex1)[2:]]
@@ -47,6 +48,10 @@ def multiply_pol(hex1, hex2):
 def division_pol(dividend):
     # dividend and divisor are both polynomials, which are here simply lists of coefficients. Eg: x^2 + 3x + 5 will be represented as [1, 3, 5]
     divisor = [1,0,0,0,1,1,0,1,1]
+
+    if type(dividend) == int:
+        dividend = [int(x) for x in bin(dividend)[2:]]
+
     out = list(dividend)  # Copy the dividend
     normalizer = divisor[0]
 
@@ -75,15 +80,25 @@ def division_pol(dividend):
     return result # return quotient, remainder.
 
 
+def create_shiftrow_state(state):
+
+    shiftrow_state = [state[x%16] for x in range(0, len(state)*5, 5)]
+    state.clear()
+    state += shiftrow_state
+
+    return 0
+
 # In dieser Funktion sollen die T-Tables berechnet und anschließend über 
 # "t_tables" zurückgegeben werden. Das Ergebnis muss also in "t_tables" geschrieben
 # werden, wobei "t_tables[i]" alle 256 Werte von T_i enthält.
 # 
 # t_tables[4][256] - Array zum Speichern der T-Tables T_0 bis T_3.
 def precompute_t_tables(t_tables):
-    # TODO Implementiere diese Funktion
+
     for index, value in enumerate(t_tables):
+
         value.clear()
+
         for init_value in range(256):
             column_values_list = [str(division_pol(multiply_pol(s, sbox[init_value]))) for s in mixColumn_tabelle[index]]
             column_values_to_int = int(''.join(column_values_list), 2)
@@ -99,11 +114,12 @@ def precompute_t_tables(t_tables):
 # state[16] - Aktueller Zustand des AES.
 # roundkey[16] - Aktueller Rundenschlüssel.
 def add_roundkey(state, roundkey):
-    # TODO Implementiere diese Funktion
+
     state_out = [int(bin(x ^ y), 2) for x, y in zip(state, roundkey)]
     state.clear()
     state += state_out
-    return 1 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+
+    return 0 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
 
 
 # In dieser Funktion soll eine Runde der AES-Verschlüsselung ausgeführt werden.
@@ -115,9 +131,28 @@ def add_roundkey(state, roundkey):
 # state[16] - Aktueller Zustand des AES.
 # roundkey[16] - Aktueller Rundenschlüssel.
 def enc_round(t_tables, state, roundkey):
-    # TODO Implementiere diese Funktion
 
-    return 1 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+    new_state = []
+    create_shiftrow_state(state)
+    for state_start_position in range(0, len(state), 4):
+
+        t_tables_pair = [0]*4
+        for t_tables_index in range(len(t_tables)):
+            t_tables_pair[t_tables_index] = t_tables[t_tables_index][state[state_start_position+t_tables_index]]
+
+        t_tables_pair_sum = reduce(lambda a, b: int(bin(a ^ b), 2), t_tables_pair)
+        hex_t_tables_pair_sum = hex(t_tables_pair_sum)[2:].zfill(8)
+
+        spliting_t_tables_pair_sum = [int(hex_t_tables_pair_sum[x:x+2], 16) for x in range(0, len(hex_t_tables_pair_sum), 2)]
+
+        new_state += spliting_t_tables_pair_sum
+
+    add_roundkey(new_state, roundkey)
+
+    state.clear()
+    state += new_state
+
+    return 0 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
 
 
 # Aufgrund der Besonderheiten der letzten Runde können die T-Tables
@@ -130,8 +165,15 @@ def enc_round(t_tables, state, roundkey):
 # ciphertext[16] - Das AES Chiffrat.
 def final_enc_round(state, roundkey, ciphertext):
     # TODO Implementiere diese Funktion
+    create_shiftrow_state(state)
 
-    return 1 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+    ciphertext_temp = [sbox[x] for x in state]
+
+    add_roundkey(ciphertext_temp, roundkey)
+
+    ciphertext.clear()
+    ciphertext += ciphertext_temp
+    return 0 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
 
 
 # Mithilfe der Methoden add_roundkey, enc_round ud final_enc_round
