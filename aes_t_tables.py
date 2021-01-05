@@ -1,4 +1,7 @@
 #!/usr/bin/python3
+
+from functools import reduce
+from math import ceil
 #   Einführung in die Kryptographie 1
 #   Projekt: AES T-Tables
 #
@@ -12,7 +15,7 @@
 
 ######################################
 # static and global variables
-
+# AES mixColumn matrix
 mixColumn_tabelle = [[0x02, 0x01, 0x01, 0x03],
                      [0x03, 0x02, 0x01, 0x01],
                      [0x01, 0x03, 0x02, 0x01],
@@ -29,20 +32,59 @@ rcon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 ######################################
 # code
 
-from functools import reduce
+######################################
+# subkeys additional functions
+
+def xtime(x):
+    shift_x = x << 1
+    div = 0x00
+    if div & 0x80:
+        div = 0x11B
+    return shift_x ^ div
+
+
+def get_rc_list(length):
+
+    x = 1
+    rc_list = []
+
+    for i in range(1, length+1):
+        rc_list.append(x)
+        x = xtime(x)
+
+    return rc_list
+
+
+def g_function(w_elem, rc):
+
+    w_elem_temp = w_elem[:]
+    # print(f'last elem {w_elem_temp}')
+    g_res = [sbox[x] for x in w_elem_temp]
+    g_res = g_res[1:] + g_res[0:1]
+    # print(g_res)
+    g_res[0] = g_res[0] ^ rc
+
+    return g_res
+
+
+######################################
+# polynome operations
+
+def binary_exps(n):
+    L = list(bin(n)[2:])
+    L.reverse()
+    L = [i for i, c in enumerate(L) if c == '1']
+    return L
+
 
 def multiply_pol(hex1, hex2):
-    s1 = [int(x) for x in bin(hex1)[2:]]
-    s2 = [int(x) for x in bin(hex2)[2:]]
+    if hex2 > hex1:  hex1, hex2 = hex2, hex1
+    result = 0
+    L = binary_exps(hex2)
+    for e in L:
+        result ^= (hex1 << e)
 
-    res = [0] * (len(s1) + len(s2) - 1)
-    for o1, i1 in enumerate(s1):
-        for o2, i2 in enumerate(s2):
-            res[o1 + o2] += i1 * i2
-            if res[o1 + o2] >= 2:
-                res[o1 + o2] %= 2
-
-    return res
+    return [int(x) for x in bin(result)[2:]]
 
 
 def division_pol(dividend):
@@ -72,13 +114,18 @@ def division_pol(dividend):
     # has necessarily the same degree as the divisor since it's what we couldn't divide from the dividend), so we compute the index
     # where this separation is, and return the quotient and remainder.
     separator = -(len(divisor) - 1)
+
     result = ''.join([str(int(abs(x))) for x in out[separator:]])
     if len(result) - 8 < 0:
         for i in range(8 - len(result)):
             result = '0' + result
 
-    return result # return quotient, remainder.
+    return result # return remainder.
+######################################
 
+
+######################################
+# ShiftRow sublayer
 
 def create_shiftrow_state(state):
 
@@ -87,6 +134,7 @@ def create_shiftrow_state(state):
     state += shiftrow_state
 
     return 0
+
 
 # In dieser Funktion sollen die T-Tables berechnet und anschließend über 
 # "t_tables" zurückgegeben werden. Das Ergebnis muss also in "t_tables" geschrieben
@@ -100,7 +148,7 @@ def precompute_t_tables(t_tables):
         value.clear()
 
         for init_value in range(256):
-            column_values_list = [str(division_pol(multiply_pol(s, sbox[init_value]))) for s in mixColumn_tabelle[index]]
+            column_values_list = [division_pol(multiply_pol(s, sbox[init_value])) for s in mixColumn_tabelle[index]]
             column_values_to_int = int(''.join(column_values_list), 2)
             value.append(column_values_to_int)
 
@@ -164,7 +212,7 @@ def enc_round(t_tables, state, roundkey):
 # roundkey[16] - Aktueller Rundenschlüssel.
 # ciphertext[16] - Das AES Chiffrat.
 def final_enc_round(state, roundkey, ciphertext):
-    # TODO Implementiere diese Funktion
+
     create_shiftrow_state(state)
 
     ciphertext_temp = [sbox[x] for x in state]
@@ -186,9 +234,15 @@ def final_enc_round(state, roundkey, ciphertext):
 # roundkeys[13][16] - Die 13 Rundenschlüssel für AES-192.
 # ciphertext[16] - Das AES Chiffrat.
 def encrypt(t_tables, plaintext, roundkeys, ciphertext):
-    # TODO Implementiere diese Funktion
 
-    return 1 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+    add_roundkey(plaintext, roundkeys[0])
+
+    for key in roundkeys[1:-1]:
+        enc_round(t_tables, plaintext, key)
+
+    final_enc_round(plaintext, roundkeys[-1], ciphertext)
+
+    return 0 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
 
 
 # In dieser Funktion soll der 192-Bit Schlüsselfahplan implementiert werden.
@@ -198,6 +252,29 @@ def encrypt(t_tables, plaintext, roundkeys, ciphertext):
 # roundkeys[13][16] - Die 13 Rundenschlüssel für AES-192.
 # key[24] Der 192-Bit AES-Schlüssel.
 def key_schedule_192(roundkeys, key):
-    # TODO Implementiere diese Funktion
 
-    return 1 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+    rc_list = get_rc_list(9)
+    w_start_values = [key[index:index+4] for index in range(0, len(key), 4)]
+
+    w_list = w_start_values
+
+    for w_round in range(0, 9):
+
+        last_elem_in_row = 6*w_round+5
+        first_elem_in_row = 6*w_round
+
+        g_res = g_function(w_list[last_elem_in_row], rc_list[w_round])
+        w_list.append([x ^ y for x, y in zip(g_res, w_list[first_elem_in_row])])
+
+        for w_round_elem in range(6*(w_round+1), 6*(w_round+2)-1):
+            w_list.append([x ^ y for x, y in zip(w_list[w_round_elem], w_list[w_round_elem-5])])
+
+    w_list = [el for lst in w_list for el in lst]
+
+    for roundkey_index, roundkey_value in enumerate(roundkeys):
+        roundkeys[roundkey_index] = w_list[16*roundkey_index:16*roundkey_index+16]
+
+    return 0 # TODO mit "return 0;" ersetzen, um die Testbench zu aktivieren
+
+
+
