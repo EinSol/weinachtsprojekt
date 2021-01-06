@@ -163,7 +163,7 @@ def precompute_t_tables(t_tables):
 # roundkey[16] - Aktueller Rundenschlüssel.
 def add_roundkey(state, roundkey):
 
-    state_out = [int(bin(x ^ y), 2) for x, y in zip(state, roundkey)]
+    state_out = [x ^ y for x, y in zip(state, roundkey)]
     state.clear()
     state += state_out
 
@@ -188,7 +188,7 @@ def enc_round(t_tables, state, roundkey):
         for t_tables_index in range(len(t_tables)):
             t_tables_pair[t_tables_index] = t_tables[t_tables_index][state[state_start_position+t_tables_index]]
 
-        t_tables_pair_sum = reduce(lambda a, b: int(bin(a ^ b), 2), t_tables_pair)
+        t_tables_pair_sum = reduce(lambda a, b: a ^ b, t_tables_pair)
         hex_t_tables_pair_sum = hex(t_tables_pair_sum)[2:].zfill(8)
 
         spliting_t_tables_pair_sum = [int(hex_t_tables_pair_sum[x:x+2], 16) for x in range(0, len(hex_t_tables_pair_sum), 2)]
