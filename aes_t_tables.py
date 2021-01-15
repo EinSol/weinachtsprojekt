@@ -1,14 +1,12 @@
 #!/usr/bin/python3
-
 from functools import reduce
-from math import ceil
 #   Einführung in die Kryptographie 1
 #   Projekt: AES T-Tables
 #
-#   Gruppe         :
+#   Gruppe         : 106
 # 
-#   Name           :
-#   Matrikelnummer :
+#   Name           : Bytko Artem
+#   Matrikelnummer : 108020239683
 # 
 #   Name           :
 #   Matrikelnummer :
@@ -35,33 +33,31 @@ rcon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 ######################################
 # subkeys additional functions
 
-def xtime(x):
-    shift_x = x << 1
-    div = 0x00
-    if div & 0x80:
-        div = 0x11B
-    return shift_x ^ div
-
-
-def get_rc_list(length):
-
-    x = 1
-    rc_list = []
-
-    for i in range(1, length+1):
-        rc_list.append(x)
-        x = xtime(x)
-
-    return rc_list
+# def xtime(x):
+#     shift_x = x << 1
+#     div = 0x00
+#     if div & 0x80:
+#         div = 0x11B
+#     return shift_x ^ div
+#
+#
+# def get_rc_list(length):
+#
+#     x = 1
+#     rc_list = []
+#
+#     for i in range(1, length+1):
+#         rc_list.append(x)
+#         x = xtime(x)
+#
+#     return rc_list
 
 
 def g_function(w_elem, rc):
 
     w_elem_temp = w_elem[:]
-    # print(f'last elem {w_elem_temp}')
     g_res = [sbox[x] for x in w_elem_temp]
     g_res = g_res[1:] + g_res[0:1]
-    # print(g_res)
     g_res[0] = g_res[0] ^ rc
 
     return g_res
@@ -106,8 +102,7 @@ def division_pol(dividend):
                     divisor)):  # in synthetic division, we always skip the first coefficient of the divisor,
                 # because it's only used to normalize the dividend coefficients
                 out[i + j] += -divisor[j] * coef
-                if out[i + j] >= 2:
-                    out[i + j] %= 2
+                out[i + j] %= 2
 
 
     # The resulting out contains both the quotient and the remainder, the remainder being the size of the divisor (the remainder
@@ -253,7 +248,6 @@ def encrypt(t_tables, plaintext, roundkeys, ciphertext):
 # key[24] Der 192-Bit AES-Schlüssel.
 def key_schedule_192(roundkeys, key):
 
-    rc_list = get_rc_list(9)
     w_start_values = [key[index:index+4] for index in range(0, len(key), 4)]
 
     w_list = w_start_values
@@ -263,7 +257,7 @@ def key_schedule_192(roundkeys, key):
         last_elem_in_row = 6*w_round+5
         first_elem_in_row = 6*w_round
 
-        g_res = g_function(w_list[last_elem_in_row], rc_list[w_round])
+        g_res = g_function(w_list[last_elem_in_row], rcon[w_round])
         w_list.append([x ^ y for x, y in zip(g_res, w_list[first_elem_in_row])])
 
         for w_round_elem in range(6*(w_round+1), 6*(w_round+2)-1):
